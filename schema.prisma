@@ -1,0 +1,64 @@
+// schema.prisma
+// -------------
+// Phase 3 — Database Schema
+// NTRO Non-IoC Network Flow Anomaly Detection Project
+//
+// Managed via Prisma ORM connected to Neon PostgreSQL.
+// Run `prisma generate` after changes to regenerate the client.
+// Run `prisma db push` (or `prisma migrate dev`) to apply schema to Neon.
+
+generator client {
+  provider             = "prisma-client-py"
+  interface            = "asyncio"
+  recursive_type_depth = 5
+}
+
+datasource db {
+  provider = "postgresql"
+  // Set DATABASE_URL in .env:
+  //   DATABASE_URL="postgresql://<user>:<password>@<host>/<db>?sslmode=require"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// NetworkFlowLog
+// ---------------------------------------------------------------------------
+// Persists the raw result of one evaluated network flow, including the
+// autoencoder's reconstruction loss, binary anomaly flag, and confidence
+// score.  One row per flow event.
+
+model NetworkFlowLog {
+  id                String   @id @default(uuid())
+  timestamp         DateTime // flow capture time (from the sniffer / CSV row)
+  srcIp             String
+  dstIp             String
+  srcPort           Int
+  dstPort           Int
+  protocol          String
+  reconstructionLoss Float
+  isAnomaly         Boolean
+  confidence        Float    // anomaly_confidence in [0, 1]
+  createdAt         DateTime @default(now())
+
+  @@index([srcIp])
+  @@index([isAnomaly])
+  @@index([timestamp])
+  @@map("network_flow_logs")
+}
+
+// ---------------------------------------------------------------------------
+// HostRiskScore
+// ---------------------------------------------------------------------------
+// Maintains the current sliding-window exponential-decay risk score (0-100)
+// for each observed source IP address.  Updated on every evaluate call.
+
+model HostRiskScore {
+  id           String   @id @default(uuid())
+  ipAddress    String   @unique
+  riskScore    Float    @default(0)   // 0 (clean) – 100 (critical)
+  lastUpdated  DateTime @default(now())
+  anomalyCount Int      @default(0)   // cumulative anomaly count for this IP
+
+  @@index([riskScore])
+  @@map("host_risk_scores")
+}

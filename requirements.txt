@@ -1,0 +1,27 @@
+# requirements.txt
+# NTRO Non-IoC Network Flow Anomaly Detection Project
+# Install with: pip install --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
+
+# ---- Web framework ---------------------------------------------------------
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+python-multipart==0.0.12       # CSV/file upload support
+
+# ---- ML / Data -------------------------------------------------------------
+# CPU-only PyTorch (avoids pulling >1 GB CUDA wheels)
+torch==2.3.1
+numpy==1.26.4
+pandas==2.2.2
+scikit-learn==1.5.1
+joblib==1.4.2
+
+# ---- Database --------------------------------------------------------------
+prisma==0.13.1                 # Prisma Python client (asyncio interface)
+asyncpg==0.29.0                # async PostgreSQL driver used by Prisma
+
+# ---- Redis -----------------------------------------------------------------
+redis[asyncio]==5.0.8          # redis-py with async support (redis.asyncio)
+
+# ---- Utilities -------------------------------------------------------------
+pydantic==2.8.2                # data validation (FastAPI models)
+python-dotenv==1.0.1           # .env file loading
