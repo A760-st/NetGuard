@@ -8,6 +8,8 @@ from app.core.logging import get_logger
 from app.database.connection import init_db, close_db
 from app.api import health, pcap_jobs, flows, alerts, incidents, hosts, analytics
 
+import app.models  # noqa: F401  (register ORM models with Base.metadata)
+
 logger = get_logger("main")
 settings = get_settings()
 

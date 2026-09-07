@@ -2,10 +2,14 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import String, DateTime, Text, Integer, Float, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.connection import Base
+
+PARSER_VERSION = "0.1.0"
+FEATURE_SCHEMA_VERSION = "1.0.0"
+DETECTOR_CONFIG_VERSION = "1.0.0"
 
 
 class AnalysisJob(Base):
@@ -32,3 +36,8 @@ class AnalysisJob(Base):
     completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    file_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    parser_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    feature_schema_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    detector_config_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    data_quality: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

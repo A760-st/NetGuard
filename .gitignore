@@ -22,6 +22,9 @@ build/
 *.out
 packet-engine/packet-engine
 
+# Uploads
+backend/uploads/
+
 # Environment
 .env
 .env.local

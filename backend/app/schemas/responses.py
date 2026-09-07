@@ -30,6 +30,11 @@ class AnalysisJobResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     completed_at: datetime | None = None
+    file_sha256: str | None = None
+    parser_version: str | None = None
+    feature_schema_version: str | None = None
+    detector_config_version: str | None = None
+    data_quality: dict | None = None
 
     model_config = {"from_attributes": True}
 

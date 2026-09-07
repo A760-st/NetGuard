@@ -32,6 +32,30 @@ export interface AnalysisJob {
   created_at: string;
   updated_at: string;
   completed_at: string | null;
+  file_sha256: string | null;
+  parser_version: string | null;
+  feature_schema_version: string | null;
+  detector_config_version: string | null;
+  data_quality: DataQuality | null;
+}
+
+export interface DataQuality {
+  total_packets: number;
+  ipv4_packets: number;
+  ipv6_packets: number;
+  tcp_packets: number;
+  udp_packets: number;
+  icmp_packets: number;
+  other_protocol_packets: number;
+  packets_without_ip: number;
+  total_flows: number;
+  unique_source_ips: number;
+  unique_destination_ips: number;
+  forward_bytes_total: number;
+  backward_bytes_total: number;
+  total_bytes: number;
+  top_destination_ports?: Record<string, number>;
+  protocol_distribution?: Record<string, number>;
 }
 
 export interface Flow {
