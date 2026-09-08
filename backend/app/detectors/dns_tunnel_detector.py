@@ -73,8 +73,12 @@ class DNSTunnelDetector(BaseDetector):
                     )
 
             if hasattr(flow, "features") and flow.features:
-                query_names = flow.features.get("dns_query_names", [])
-                for qname in query_names[:5]:
+                query_names = list(flow.features.get("dns_query_names", []) or [])
+            else:
+                query_names = []
+            if not query_names and getattr(flow, "dns_query_names", None):
+                query_names = list(flow.dns_query_names)
+            for qname in query_names[:5]:
                     analysis = self._label_analysis(qname)
                     entropy = self._query_entropy(qname)
 

@@ -6,7 +6,7 @@ import asyncio
 from collections import Counter
 from datetime import datetime, timezone
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 
 from app.core.logging import get_logger
 from app.core.config import get_settings
@@ -14,8 +14,11 @@ from app.database.connection import async_session_factory
 from app.models.analysis_job import AnalysisJob, PARSER_VERSION, FEATURE_SCHEMA_VERSION, DETECTOR_CONFIG_VERSION
 from app.models.flow import Flow
 from app.models.alert import Alert
+from app.models.incident import Incident
 from app.models.detector_result import DetectorResult as DetectorResultModel
 from app.models.host_risk import HostRiskScore
+from app.models.processing_error import ProcessingError
+from app.services.pipeline import build_pipeline, data_mode_label, is_demo_filename
 from app.services.pcap_parser import parse_pcap, PcapPacket
 from app.services.flow_engine import build_flows, FlowRecord
 from app.services.feature_engine import compute_features, FEATURE_NAMES
@@ -32,12 +35,65 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 _active_jobs: dict[str, asyncio.Task] = {}
 _job_progress: dict[str, float] = {}
+_job_stage: dict[str, str] = {}
 
 _anomaly_engine = None
 
 
 def get_job_progress(job_id: str) -> float:
     return _job_progress.get(job_id, 0.0)
+
+
+def get_job_stage(job_id: str) -> str | None:
+    return _job_stage.get(job_id)
+
+
+def decorate_job(job: AnalysisJob) -> AnalysisJob:
+    """Attach computed pipeline fields onto the ORM object for API responses."""
+    job_id = str(job.id)
+    progress = get_job_progress(job_id) or job.progress or 0.0
+    if progress:
+        job.progress = progress
+    pipeline = build_pipeline(
+        status=job.status,
+        progress=progress,
+        current_stage=get_job_stage(job_id),
+        error_message=job.error_message,
+    )
+    job.pipeline_stage = pipeline.get("current_stage")  # type: ignore[attr-defined]
+    job.pipeline = pipeline  # type: ignore[attr-defined]
+    job.is_demo = is_demo_filename(job.filename)  # type: ignore[attr-defined]
+    job.data_mode = data_mode_label(job.filename)  # type: ignore[attr-defined]
+    job.processing_message = pipeline.get("message")  # type: ignore[attr-defined]
+    return job
+
+
+async def reset_analysis_state() -> dict[str, int]:
+    """Clear processed traffic, detections, incidents, and job history."""
+    for job_id, task in list(_active_jobs.items()):
+        if task and not task.done():
+            task.cancel()
+    _active_jobs.clear()
+    _job_progress.clear()
+    _job_stage.clear()
+
+    async with async_session_factory() as db:
+        counts = {}
+        for model in (
+            ProcessingError,
+            DetectorResultModel,
+            HostRiskScore,
+            Incident,
+            Alert,
+            Flow,
+            AnalysisJob,
+        ):
+            result = await db.execute(delete(model))
+            counts[model.__tablename__] = result.rowcount or 0
+        await db.commit()
+
+    logger.info("analysis_state_reset", **counts)
+    return counts
 
 
 def _get_anomaly_engine():
@@ -170,28 +226,41 @@ async def _process_job(job_id: str, file_path: str) -> None:
             await db.commit()
 
         _job_progress[job_id] = 0.05
+        _job_stage[job_id] = "dataset_loaded"
+        await _update_progress(job_id, 0.05)
 
         file_sha256 = _compute_file_sha256(file_path)
 
-        packets = parse_pcap(file_path)
-        total_packets = len(packets)
-        logger.info("pcap_parsed", job_id=job_id, packet_count=total_packets)
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext == ".csv":
+            from app.services.csv_parser import parse_flow_csv
 
-        _job_progress[job_id] = 0.20
-        await _update_progress(job_id, 0.20, packet_count=total_packets)
+            flow_records, packets = parse_flow_csv(file_path)
+            total_packets = len(packets)
+            logger.info("csv_parsed", job_id=job_id, flow_count=len(flow_records), packet_count=total_packets)
+        else:
+            pcap = parse_pcap(file_path)
+            packets = pcap.packets
+            total_packets = len(packets)
+            logger.info("pcap_parsed", job_id=job_id, packet_count=total_packets)
+            flow_records = build_flows(packets)
 
-        flow_records = build_flows(packets)
+        _job_stage[job_id] = "traffic_parsed"
+        _job_progress[job_id] = 0.22
+        await _update_progress(job_id, 0.22, packet_count=total_packets)
+
         total_flows = len(flow_records)
         logger.info("flows_built", job_id=job_id, flow_count=total_flows)
 
-        _job_progress[job_id] = 0.35
-        await _update_progress(job_id, 0.35)
+        _job_stage[job_id] = "features_extracted"
+        _job_progress[job_id] = 0.40
+        await _update_progress(job_id, 0.40)
 
         features_map = _build_features_map(flow_records)
         logger.info("features_computed", job_id=job_id, feature_count=len(features_map))
 
-        _job_progress[job_id] = 0.45
-        await _update_progress(job_id, 0.45)
+        _job_progress[job_id] = 0.48
+        await _update_progress(job_id, 0.48)
 
         flow_uuid_map: dict[str, uuid.UUID] = {}
         async with async_session_factory() as db:
@@ -215,6 +284,11 @@ async def _process_job(job_id: str, file_path: str) -> None:
                 flow_features = feat.to_dict() if feat else {}
                 if fr.dns_query_names:
                     flow_features["dns_query_names"] = fr.dns_query_names
+                if getattr(fr, "features", None):
+                    for extra_key in ("traffic_label", "original_label", "dataset", "dns_query_names"):
+                        extra_val = fr.features.get(extra_key)
+                        if extra_val not in (None, "", [], {}):
+                            flow_features[extra_key] = extra_val
 
                 flow_record = Flow(
                     id=flow_uuid,
@@ -278,12 +352,14 @@ async def _process_job(job_id: str, file_path: str) -> None:
                     db.add(dr)
                     await db.commit()
 
+        _job_stage[job_id] = "risk_scoring"
         _job_progress[job_id] = 0.70
         await _update_progress(job_id, 0.70)
 
         deduplicated = deduplicate_alerts(all_detector_results)
         logger.info("alerts_deduplicated", job_id=job_id, raw=len(all_detector_results), deduplicated=len(deduplicated))
 
+        saved_alerts: list[dict] = []
         async with async_session_factory() as db:
             for alert_data in deduplicated:
                 risk = calculate_risk_score(
@@ -291,15 +367,31 @@ async def _process_job(job_id: str, file_path: str) -> None:
                     severity=alert_data["severity"],
                     occurrence_count=alert_data.get("occurrence_count", 1),
                 )
+                severity = classify_severity(risk)
+                matched_flow = next(
+                    (
+                        fr
+                        for fr in flow_records
+                        if fr.source_ip == alert_data.get("source_ip")
+                        and (
+                            not alert_data.get("destination_ip")
+                            or fr.destination_ip == alert_data.get("destination_ip")
+                        )
+                    ),
+                    None,
+                )
                 alert = Alert(
                     job_id=uuid.UUID(job_id),
                     flow_id=flow_uuid_map.get(alert_data.get("flow_id")),
                     source_ip=alert_data["source_ip"],
                     destination_ip=alert_data["destination_ip"],
+                    source_port=getattr(matched_flow, "source_port", None) if matched_flow else None,
+                    destination_port=getattr(matched_flow, "destination_port", None) if matched_flow else None,
+                    protocol=getattr(matched_flow, "protocol", None) if matched_flow else None,
                     threat_class=alert_data["threat_class"],
                     confidence=alert_data["confidence"],
                     risk_score=risk,
-                    severity=classify_severity(risk),
+                    severity=severity,
                     supporting_evidence=alert_data.get("supporting_evidence"),
                     detector_name=alert_data["detector_name"],
                     status="new",
@@ -307,15 +399,22 @@ async def _process_job(job_id: str, file_path: str) -> None:
                     occurrence_count=alert_data.get("occurrence_count", 1),
                 )
                 db.add(alert)
+                await db.flush()
+                saved = dict(alert_data)
+                saved["id"] = str(alert.id)
+                saved["risk_score"] = risk
+                saved["severity"] = severity
+                saved_alerts.append(saved)
             await db.commit()
 
-        _job_progress[job_id] = 0.80
-        await _update_progress(job_id, 0.80)
+        _job_stage[job_id] = "incidents_generated"
+        _job_progress[job_id] = 0.82
+        await _update_progress(job_id, 0.82)
 
-        await correlate_alerts(job_id, deduplicated)
+        await correlate_alerts(job_id, saved_alerts)
 
-        _job_progress[job_id] = 0.90
-        await _update_progress(job_id, 0.90)
+        _job_progress[job_id] = 0.95
+        await _update_progress(job_id, 0.95)
 
         await _compute_host_risks(job_id, flow_records, all_detector_results)
 
@@ -358,12 +457,13 @@ async def _process_job(job_id: str, file_path: str) -> None:
         raise
     except Exception as e:
         logger.error("job_processing_failed", job_id=job_id, error=str(e))
+        message = _friendly_process_error(e)
         try:
             async with async_session_factory() as db:
                 await db.execute(
                     update(AnalysisJob)
                     .where(AnalysisJob.id == uuid.UUID(job_id))
-                    .values(status="failed", error_message=str(e)[:1000])
+                    .values(status="failed", error_message=message[:1000])
                 )
                 await db.commit()
         except Exception:
@@ -371,6 +471,24 @@ async def _process_job(job_id: str, file_path: str) -> None:
     finally:
         _active_jobs.pop(job_id, None)
         _job_progress.pop(job_id, None)
+        _job_stage.pop(job_id, None)
+
+
+def _friendly_process_error(exc: Exception) -> str:
+    text = str(exc)
+    lowered = text.lower()
+    if "required network-flow fields" in lowered or "missing required columns" in lowered:
+        return text
+    if "no valid network-flow" in lowered or "no valid flow" in lowered:
+        return text
+    if "pcapng" in lowered:
+        return (
+            "Unable to process dataset because PCAPNG is not supported. "
+            "Upload classic PCAP (.pcap/.cap) or a flow CSV."
+        )
+    if "empty file" in lowered:
+        return "Unable to process dataset because the file is empty."
+    return f"Unable to process dataset. {text}"
 
 
 async def _compute_host_risks(

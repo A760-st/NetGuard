@@ -1,24 +1,24 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, Float, Integer, Text, ForeignKey, func
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy import String, DateTime, Float, Integer, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.connection import Base
+from app.database.types import GUID, JSONType
 
 
 class Alert(Base):
     __tablename__ = "alerts"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        GUID(), primary_key=True, default=uuid.uuid4
     )
     job_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("analysis_jobs.id"), nullable=False
+        GUID(), ForeignKey("analysis_jobs.id"), nullable=False
     )
     flow_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("flows.id"), nullable=True
+        GUID(), ForeignKey("flows.id"), nullable=True
     )
     source_ip: Mapped[str] = mapped_column(String(45), nullable=False)
     destination_ip: Mapped[str] = mapped_column(String(45), nullable=False)
@@ -29,7 +29,7 @@ class Alert(Base):
     confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     risk_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     severity: Mapped[str] = mapped_column(String(20), nullable=False, default="LOW")
-    supporting_evidence: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    supporting_evidence: Mapped[dict | None] = mapped_column(JSONType(), nullable=True)
     detector_name: Mapped[str] = mapped_column(String(100), nullable=False)
     model_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="new")

@@ -2,10 +2,10 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import String, DateTime, Text, Integer, Float, func
-from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.connection import Base
+from app.database.types import GUID, JSONType
 
 PARSER_VERSION = "0.1.0"
 FEATURE_SCHEMA_VERSION = "1.0.0"
@@ -16,7 +16,7 @@ class AnalysisJob(Base):
     __tablename__ = "analysis_jobs"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        GUID(), primary_key=True, default=uuid.uuid4
     )
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
     file_size: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -40,4 +40,4 @@ class AnalysisJob(Base):
     parser_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
     feature_schema_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
     detector_config_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    data_quality: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    data_quality: Mapped[dict | None] = mapped_column(JSONType(), nullable=True)

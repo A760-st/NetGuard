@@ -35,6 +35,11 @@ class AnalysisJobResponse(BaseModel):
     feature_schema_version: str | None = None
     detector_config_version: str | None = None
     data_quality: dict | None = None
+    pipeline_stage: str | None = None
+    pipeline: dict | None = None
+    is_demo: bool = False
+    data_mode: str | None = None
+    processing_message: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -74,7 +79,7 @@ class AlertResponse(BaseModel):
     confidence: float
     risk_score: float
     severity: str
-    supporting_evidence: dict | None = None
+    supporting_evidence: list | dict | None = None
     detector_name: str
     model_version: str | None = None
     status: str
@@ -92,7 +97,7 @@ class IncidentResponse(BaseModel):
     affected_ips: list[str] | None = None
     severity: str
     confidence: float
-    related_alert_ids: list[uuid.UUID] | None = None
+    related_alert_ids: list[uuid.UUID] | list[str] | None = None
     evidence: dict | None = None
     first_seen: datetime
     last_seen: datetime

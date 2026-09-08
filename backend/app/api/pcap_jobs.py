@@ -26,7 +26,7 @@ settings = get_settings()
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-ALLOWED_EXTENSIONS = {".pcap", ".pcapng", ".cap"}
+ALLOWED_EXTENSIONS = {".pcap", ".pcapng", ".cap", ".csv"}
 MAX_FILE_SIZE = settings.max_upload_size_mb * 1024 * 1024
 
 
@@ -39,7 +39,13 @@ async def upload_pcap(file: UploadFile = File(...), db: AsyncSession = Depends(g
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported file type: {ext}. Allowed: {', '.join(ALLOWED_EXTENSIONS)}",
+            detail=f"Unsupported file type: {ext}. Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}",
+        )
+
+    if ext == ".pcapng":
+        raise HTTPException(
+            status_code=400,
+            detail="PCAPNG is not supported by the current parser. Please upload classic PCAP (.pcap/.cap) or flow CSV (.csv).",
         )
 
     content = await file.read()
@@ -204,3 +210,50 @@ async def job_progress_sse(job_id: str):
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.post("/demo", response_model=AnalysisJobResponse, status_code=201)
+async def load_demo_dataset(db: AsyncSession = Depends(get_db)):
+    """Load the bundled DEMO/SAMPLE flow CSV and process it through the pipeline."""
+    candidates = [
+        os.path.abspath(
+            os.path.join(
+                os.path.dirname(__file__),
+                "..",
+                "..",
+                "..",
+                "data",
+                "samples",
+                "DEMO_SAMPLE_netguard_flows.csv",
+            )
+        ),
+        os.path.abspath(
+            os.path.join(os.getcwd(), "data", "samples", "DEMO_SAMPLE_netguard_flows.csv")
+        ),
+    ]
+    demo_path = next((p for p in candidates if os.path.isfile(p)), None)
+    if not demo_path:
+        raise HTTPException(
+            status_code=404,
+            detail="Demo dataset not found. Expected data/samples/DEMO_SAMPLE_netguard_flows.csv",
+        )
+
+    file_size = os.path.getsize(demo_path)
+    file_id = str(uuid.uuid4())
+    dest_name = "DEMO_SAMPLE_netguard_flows.csv"
+    dest_path = os.path.join(UPLOAD_DIR, f"{file_id}_{dest_name}")
+
+    with open(demo_path, "rb") as src, open(dest_path, "wb") as dst:
+        dst.write(src.read())
+
+    job_id = await create_job(dest_path, file_size, dest_name)
+    await start_job_processing(job_id, dest_path)
+
+    async with async_session_factory() as session:
+        result = await session.execute(
+            select(AnalysisJob).where(AnalysisJob.id == uuid.UUID(job_id))
+        )
+        job = result.scalar_one()
+
+    return job
+

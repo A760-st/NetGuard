@@ -126,15 +126,13 @@ def build_flows(packets: list[PcapPacket]) -> list[FlowRecord]:
 
     result = list(flows.values())
     for flow in result:
+        flow.duration = max(0.0, flow.last_seen - flow.first_seen)
         if flow.dns_query_names:
             flow.features["dns_query_names"] = flow.dns_query_names
-        if flow.forward_packets + flow.backward_packets > 0:
-            total_pkts = flow.forward_packets + flow.backward_packets
-            total_bytes = flow.forward_bytes + flow.backward_bytes
-            flow.flow_id = (
-                f"{flow.source_ip}:{flow.source_port}-"
-                f"{flow.destination_ip}:{flow.destination_port}-"
-                f"{flow.protocol}"
-            )
+        flow.flow_id = (
+            f"{flow.source_ip}:{flow.source_port}-"
+            f"{flow.destination_ip}:{flow.destination_port}-"
+            f"{flow.protocol}"
+        )
 
     return result

@@ -10,6 +10,8 @@ import Hosts from './pages/Hosts';
 import SystemHealth from './pages/SystemHealth';
 import ThreatAnalytics from './pages/ThreatAnalytics';
 import ModelsPage from './pages/ModelsPage';
+import Replay from './pages/Replay';
+import Analyst from './pages/Analyst';
 
 export default function App() {
   return (
@@ -21,10 +23,12 @@ export default function App() {
           <main className="flex-1 overflow-y-auto p-6">
             <Routes>
               <Route path="/" element={<Overview />} />
+              <Route path="/jobs" element={<Jobs />} />
+              <Route path="/replay" element={<Replay />} />
               <Route path="/flows" element={<Flows />} />
               <Route path="/alerts" element={<Alerts />} />
               <Route path="/incidents" element={<Incidents />} />
-              <Route path="/jobs" element={<Jobs />} />
+              <Route path="/analyst" element={<Analyst />} />
               <Route path="/hosts" element={<Hosts />} />
               <Route path="/analytics" element={<ThreatAnalytics />} />
               <Route path="/models" element={<ModelsPage />} />

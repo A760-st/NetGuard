@@ -1,21 +1,21 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, Float, Integer, ForeignKey, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import String, DateTime, Integer, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.connection import Base
+from app.database.types import GUID
 
 
 class ProcessingError(Base):
     __tablename__ = "processing_errors"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        GUID(), primary_key=True, default=uuid.uuid4
     )
     job_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("analysis_jobs.id"), nullable=False
+        GUID(), ForeignKey("analysis_jobs.id"), nullable=False
     )
     stage: Mapped[str] = mapped_column(String(100), nullable=False)
     error_type: Mapped[str] = mapped_column(String(100), nullable=False)

@@ -2,13 +2,15 @@ import { NavLink } from 'react-router-dom';
 
 const links = [
   { to: '/', label: 'Overview', icon: '⊞' },
-  { to: '/flows', label: 'Flows', icon: '⇋' },
+  { to: '/jobs', label: 'Upload / Jobs', icon: '▶' },
+  { to: '/replay', label: 'Traffic Replay', icon: '↻' },
+  { to: '/flows', label: 'Flows / Features', icon: '⇋' },
   { to: '/alerts', label: 'Alerts', icon: '⚠' },
   { to: '/incidents', label: 'Incidents', icon: '◉' },
-  { to: '/jobs', label: 'PCAP Jobs', icon: '▶' },
+  { to: '/analyst', label: 'AI Analyst', icon: '◎' },
   { to: '/hosts', label: 'Hosts', icon: '⊙' },
-  { to: '/analytics', label: 'Analytics', icon: '◈' },
-  { to: '/models', label: 'Models', icon: '⬡' },
+  { to: '/analytics', label: 'Network Intel', icon: '◈' },
+  { to: '/models', label: 'Detectors', icon: '⬡' },
   { to: '/system', label: 'System Health', icon: '⊞' },
 ];
 
@@ -21,7 +23,7 @@ export default function Sidebar() {
         </h1>
         <p className="text-xs text-gray-500 mt-1">Traffic Intelligence</p>
       </div>
-      <nav className="flex-1 p-2 space-y-1">
+      <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
         {links.map((link) => (
           <NavLink
             key={link.to}
@@ -41,7 +43,7 @@ export default function Sidebar() {
         ))}
       </nav>
       <div className="p-4 border-t border-gray-800 text-xs text-gray-600">
-        v0.1.0
+        v0.1.0 · recorded traffic only
       </div>
     </aside>
   );

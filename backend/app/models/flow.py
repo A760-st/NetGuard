@@ -1,21 +1,21 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, Integer, Float, Text, ForeignKey, func
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy import String, DateTime, Integer, Float, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.connection import Base
+from app.database.types import GUID, JSONType
 
 
 class Flow(Base):
     __tablename__ = "flows"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        GUID(), primary_key=True, default=uuid.uuid4
     )
     job_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("analysis_jobs.id"), nullable=False
+        GUID(), ForeignKey("analysis_jobs.id"), nullable=False
     )
     source_ip: Mapped[str] = mapped_column(String(45), nullable=False)
     destination_ip: Mapped[str] = mapped_column(String(45), nullable=False)
@@ -29,7 +29,7 @@ class Flow(Base):
     backward_packets: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     forward_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     backward_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    features: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    features: Mapped[dict | None] = mapped_column(JSONType(), nullable=True)
     anomaly_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

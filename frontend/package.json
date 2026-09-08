@@ -18,14 +18,16 @@
     "recharts": "^2.10.3"
   },
   "devDependencies": {
-    "@testing-library/react": "^14.1.2",
     "@testing-library/jest-dom": "^6.1.4",
+    "@testing-library/react": "^14.1.2",
     "@types/react": "^18.2.37",
     "@types/react-dom": "^18.2.15",
     "@typescript-eslint/eslint-plugin": "^6.13.2",
     "@typescript-eslint/parser": "^6.13.2",
     "@vitejs/plugin-react": "^4.2.0",
-    "autoprefixer": "^10.4.16",
+    "autoprefixer": "^10.5.5",
+    "browserslist": "^4.28.9",
+    "caniuse-lite": "^1.0.30001810",
     "eslint": "^8.55.0",
     "jsdom": "^23.0.1",
     "postcss": "^8.4.31",
